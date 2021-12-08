@@ -1,0 +1,45 @@
+{%  extends 'partial/account.html' %}
+
+{% block head %}
+    <title>Reset Password Request</title>
+{% endblock %}
+{% block body %}
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-9 col-lg-12 col-xl-10">
+                <div class="card shadow-lg o-hidden border-0 my-5">
+                    <div class="card-body p-0">
+                        <div class="row">
+                            <div class="col-lg-6 d-none d-lg-flex">
+                                <div class="flex-grow-1 bg-login-image" style="">Image</div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="p-5">
+                                    <div class="text-center">
+                                        <h4 class="text-dark mb-4">Request password reset!</h4>
+                                    </div>
+                                    <form class="user" action="{{ url_for('main.reset_request') }}" method="POST">
+                                        {{ form.hidden_tag() }}
+                                        {% with messages = get_flashed_messages(with_categories=true) %}
+                                            {% if messages %}
+                                                {% for category, message in messages %}
+                                                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endwith %}
+                                        <div class="mb-3">
+                                            {{ form.email(class_="form-control form-control-user", placeholder="Enter Email Address...") }}
+                                        </div>
+                                        {{ form.submit(class_="btn btn-primary d-block btn-user w-100") }}
+                                    </form>
+                                    <div class="text-center"><a class="small" href="{{ url_for('main.register') }}">Create an Account!</a></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+

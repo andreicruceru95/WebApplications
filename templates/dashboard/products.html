@@ -1,0 +1,79 @@
+{%  extends 'partial/base.html' %}
+
+{% block head %}
+    <title>Products</title>
+{% endblock %}
+
+{% block body %}
+    <div class="d-sm-flex justify-content-between align-items-center mb-4">
+        <h3 class="text-dark mb-0">Products</h3><a class="btn btn-primary btn-sm d-none d-sm-inline-block" role="button" href="#"><i class="fas fa-download fa-sm text-white-50"></i>&nbsp;Generate Report</a>
+    </div>
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <p class="text-primary m-0 fw-bold">Top Products by Yearly Sales</p>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 text-nowrap">
+                    <div id="dataTable_length" class="dataTables_length" aria-controls="dataTable"><label class="form-label">Show&nbsp;<select class="d-inline-block form-select form-select-sm">
+                        <option value="10" selected="">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>&nbsp;</label></div>
+                </div>
+            </div>
+            <div class="table-responsive table mt-2" id="dataTable" role="grid" aria-describedby="dataTable_info">
+                <table class="table my-0" id="dataTable">
+                    <thead>
+                    <tr>
+                        <th></th>
+                        <th>Product Title</th>
+                        <th>Product ID</th>
+                        <th>Sales</th>
+                        <th>% Share of Top 25 Products</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for index, row in data['products'].iterrows() %}
+                    <tr>
+                        <td><img class="rounded-circle me-2" width="90" height="90" src="{{ row['image_url'] }}"></td>
+                        <td>{{ row['title'] }}</td>
+                        <td><form action="{{ url_for('dashboard.products') }}", method="POST">
+                            <input type="hidden" name="prod_id" value="{{ row['id'] }}">
+                            <input class="btn" type="submit" value="{{ row['id'] }}"></form></td>
+                        <td>£ {{ row['sales'] }}.00</td>
+                        <td>{{ row['sales'] *100 // data['products']['sales'].sum() }}%</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot>
+                    <tr>
+                        <td></td>
+                        <td><strong>Product Title</strong></td>
+                        <td><strong>Product ID</strong></td>
+                        <td><strong>Sales</strong></td>
+                        <td><strong>% Share of Top 25</strong></td>
+                    </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="row">
+                <div class="col-md-6 align-self-center">
+                    <p id="dataTable_info" class="dataTables_info" role="status" aria-live="polite">Showing 1 to 10 of 27</p>
+                </div>
+                <div class="col-md-6">
+                    <nav class="d-lg-flex justify-content-lg-end dataTables_paginate paging_simple_numbers">
+                        <ul class="pagination">
+                            <li class="page-item disabled"><a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">«</span></a></li>
+                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+                            <li class="page-item"><a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">»</span></a></li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

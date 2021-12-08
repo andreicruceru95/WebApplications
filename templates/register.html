@@ -1,0 +1,74 @@
+{% extends 'partial/account.html' %}
+{% block head %}
+    <title>Register</title>
+{% endblock %}
+{% block body %}
+    <div class="container">
+        <div class="card shadow-lg o-hidden border-0 my-5">
+            <div class="card-body p-0">
+                <div class="row">
+                    <div class="col-lg-5 d-none d-lg-flex">
+                        <div class="flex-grow-1 bg-register-image" style="">Image</div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="p-5">
+                            <div class="text-center">
+                                <h4 class="text-dark mb-4">Register an Account!</h4>
+                            </div>
+                            <form class="user" action="{{ url_for('main.register') }}" method="POST">
+                                {{ form.csrf_token() }}
+                                {{ form.hidden_tag() }}
+                                {% with messages = get_flashed_messages(with_categories=true) %}
+                                    {% if messages %}
+                                        {% for category, message in messages %}
+                                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {%  endwith %}
+                                <div class="row mb-3">
+                                    <div class="col-sm-6 mb-3 mb-sm-0">
+                                        {% if form.first_name.errors %}
+                                            {% for error in form.first_name.errors %}
+                                                <span class="text-danger">{{ error }}</span>
+                                            {% endfor %}
+                                        {% endif %}
+                                        {{ form.first_name(class_="form-control form-control-user", placeholder="First Name") }}
+                                    </div>
+                                    <div class="col-sm-6">
+                                        {% if form.last_name.errors %}
+                                            {% for error in form.last_name.errors %}
+                                                <span class="text-danger">{{ error }}</span>
+                                            {% endfor %}
+                                        {% endif %}
+                                        {{ form.last_name(class_="form-control form-control-user", placeholder="Last Name") }}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    {% if form.email.errors %}
+                                        {% for error in form.email.errors %}
+                                            <span class="text-danger">{{ error }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {{ form.email(class_="form-control form-control-user", placeholder="Email") }}
+                                </div>
+                                <div class="row mb-3">
+                                    {% if form.role.errors %}
+                                        {% for error in form.role.errors %}
+                                            <span class="text-danger">{{ error }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                    <div class="col-sm-6 mb-3 mb-sm-0 nav-item dropdown no-arrow">
+                                        {{ form.role(class_="form-control form-control-user dropdown-item", placeholder="Possition") }}
+                                    </div>
+                                </div>
+                                {{ form.submit(class_="btn btn-primary d-block btn-user w-100") }}
+                                <hr><a class="btn btn-primary d-block btn-google btn-user w-100 mb-2" role="button"><i class="fab fa-google"></i>&nbsp; Register with Google</a><a class="btn btn-primary d-block btn-facebook btn-user w-100" role="button"><i class="fab fa-facebook-f"></i>&nbsp; Register with Facebook</a>
+                                <hr>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

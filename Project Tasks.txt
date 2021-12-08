@@ -1,0 +1,31 @@
+Pages:
+	Home: 
+		tasks,
+		upcomming meetings, 
+		team calendar,
+	Sales	
+		time series sales,
+		sales by category,
+		sales by occasion,
+		sales by brand
+	Availability
+		time series availability,
+		brand availability,
+		ocassion availability,
+		category availability,
+	Promotions
+		active promotions,
+		average price vs promotion price,
+		promotion earnings vs normal earnings( % )
+	Products
+		top x products by sales,
+		| img | title | availability  % | price | QTD sales | YTD sales |
+		onclick => open product page
+	Reviews
+		positive vs negative reviews,
+		sentiment analysis,
+		word cloud,
+		reviews by location,
+		review count,
+		review distribution by stars
+		 

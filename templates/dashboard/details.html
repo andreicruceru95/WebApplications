@@ -1,0 +1,182 @@
+{% extends 'partial/base.html' %}
+
+{% block head %}
+        <title>{{ data['product']['title'].iloc[0] }}</title>
+{% endblock %}
+
+{% block body %}
+<div class="row">
+     <div class="col-md-2"></div>
+        <div class="col-md-8">
+            <div class="row">
+                <div class="col-md-1">
+                    <form>
+                        <input class="btn btn-outline-dark" type="button" value="< back" onclick="history.back()">
+                    </form>
+                </div>
+                <div class="col-md-1"></div>
+                <div class="col">
+                    <h3><strong>{{ data['product']['title'].iloc[0] }}</strong></h3>
+                </div>
+                <hr>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-12"><img class="img-thumbnail img-fluid center-block" src="{{ data['product']['image_url'].iloc[0] }}"></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="row">
+                        <table class="table-responsive-md">
+                            <tr>
+                                <td><strong>Category:</strong></td>
+                                <td>{{ data['product']['category'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Brand:</strong></td>
+                                <td>{{ data['product']['brand'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Collection:</strong></td>
+                                <td>{{ data['product']['collection'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Occasion:</strong></td>
+                                <td>{{ data['product']['occasion'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Material:</strong></td>
+                                <td>{{ data['product']['prod_material'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>For:</strong></td>
+                                <td>{{ data['product']['recipient'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Country Origin:</strong></td>
+                                <td>{{ data['product']['origin'].iloc[0] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>Details:</h4>
+                    <br>{{ data['product']['description'].iloc[0] }}<br>
+                </div>
+                {% if data['product']['birthstone'].iloc[0] %}
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h3>Stone: {{ data['product']['stone_material'].iloc[0] }}</h3>
+                            <h3>Month: {{ data['product']['birthstone'].iloc[0] }}</h3>
+                        </div>
+                        <div class="col-md-4">
+                            <img class="img-thumbnail img-fluid center-block" src="{{ data['product']['stone_image'].iloc[0] }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <hr>
+                        <table class="table-responsive-md">
+                            <tr>
+                                <td><strong>Color:</strong></td>
+                                <td>{{ data['product']['color'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cut:</strong></td>
+                                <td>{{ data['product']['cut'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Clarity:</strong></td>
+                                <td>{{ data['product']['clarity'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Carat:</strong></td>
+                                <td>{{ data['product']['carat'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Style:</strong></td>
+                                <td>{{ data['product']['style'].iloc[0] }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Shape:</strong></td>
+                                <td>{{ data['product']['shape'].iloc[0] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="row">
+                        <img class="img-thumbnail img-fluid center-block" src="{{ data['product']['shape_image'].iloc[0] }}">
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+                {% if data['reviews']['review_text'].any() %}
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="row">
+                            <h3>Reviews</h3>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            {% for i in range(0, data['reviews']['rating'].mean()|int) %}
+                                <div class="col-1">
+                                    <i class="fas fa-star" style="color: gold;"></i>
+                                </div>
+                            {% endfor %}
+                            {% if data['reviews']['rating'].mean() % 1 > 0 %}
+                                <div class="col-1">
+                                    <i class="fas fa-star-half" style="color: gold;"></i>
+                                </div>
+                            {% endif %}
+                            <div class="col">
+                                <p>{{ data['reviews']['rating'].mean() }} Overall Rating</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col"></div>
+                </div>
+                <hr><br>
+                <div class="row">
+                    <div class="col-md-3">
+                        {% for x in [5,4,3,2,1] %}
+                        <div class="row">
+                            {% for i in range(0,x) %}
+                            <div class="col-1">
+                                <i class="fas fa-star" style="color: gold;"></i>
+                            </div>
+                            {% endfor %}
+                            <div class="col-1">
+                                {{ data['reviews'][data['reviews']['rating'] == x]|length }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="col-md-9">
+                        {% for index, row in data['reviews'].iterrows() %}
+                            <div class="row">
+                                <div class="col-md-4" style="border-top: 1px solid lightgray;">
+                                    <p><strong>{{ row['review_date'] }}</strong> on {{ row['review_source'] }}</p>
+                                    <p>{{ row['gender'] }}, age {{ row['age_group'] }}, from {{ row['location'] }}</p>
+                                    <div class="row">
+                                        {% for i in range(0, row['rating']) %}
+                                            <div class="col-1">
+                                                <i class="fas fa-star" style="color: gold;"></i>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <div class="col" style="border-top: 1px solid lightgray;">
+                                    {{ row['review_text'] }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-md-2"></div>
+</div>
+{% endblock %}
