@@ -3,7 +3,7 @@ from werkzeug.datastructures import ImmutableMultiDict
 from flask_login import login_required, current_user
 from datetime import datetime
 from PIL import Image
-from bokeh.models import ColumnDataSource, Select, Slider, Range1d
+from bokeh.models import ColumnDataSource, Select, Slider, Range1d, MultiSelect, MultiChoice
 from bokeh.models.callbacks import CustomJS
 from bokeh.resources import INLINE, CDN
 from bokeh.embed import components, file_html, json_item
@@ -27,7 +27,7 @@ from models import UpdateUserInfo
 def connect():
     _db = mysql.connector.connect(user=store.user, password=store.password,
                                   host=store.hostname,
-                                  database='dashboard')
+                                  database='newschema')
     return _db
 
 
@@ -37,21 +37,13 @@ def query_db(query):
     _db.close()
     return data
 
-
-def get_filter_data():
-    query = """SELECT DISTINCT p.category, p.brand, p.occasion, p.collection, p.prod_material
-               FROM  product p"""
-    return query_db(query)
-
-
 @dashboard.route('/dashboard/summary')
 @login_required
 def summary():
     plot = figure()
     plot.circle([1,2], [3,4])
 
-    data = {'filter': get_filter_data()}
-    return render_template('dashboard/dashboard.html', data=data)
+    return render_template('dashboard/dashboard.html')
 
 
 @dashboard.route('/dashboard/sales')
@@ -62,40 +54,27 @@ def sales():
                 LEFT JOIN product p ON s.product_id = p.id
                 LEFT JOIN date d on s.date_id = d.id"""
     sales_data = query_db(query)
-    data = {'filter': get_filter_data()}
 
-    title = "Sales by Month"
-    monthly_sales = sales_data.groupby('month').sales.sum().reset_index()
-    monthly_sales.month = monthly_sales.apply(lambda x: datetime.strptime(x.month, "%b").month, axis=1)
-    monthly_sales = monthly_sales.sort_values(by='month')
 
-    d = monthly_sales.values.tolist()
-    c = monthly_sales.columns.tolist()
-    d.insert(0, c)
-    temp_data = json.dumps({'title': title, 'data': d})
-
-    return render_template('dashboard/sales.html', data=data, tempdata=temp_data)
+    return render_template('dashboard/sales.html')
 
 
 @dashboard.route('/dashboard/availability')
 @login_required
 def availability():
-    data = {'filter': get_filter_data()}
-    return render_template('dashboard/availability.html', data=data)
+    return render_template('dashboard/availability.html')
 
 
 @dashboard.route('/dashboard/promotions')
 @login_required
 def promotions():
-    data = {'filter': get_filter_data()}
-    return render_template('dashboard/promotions.html', data=data)
+    return render_template('dashboard/promotions.html')
 
 
 @dashboard.route('/dashboard/reviews')
 @login_required
 def reviews():
-    data = {'filter': get_filter_data()}
-    return render_template('dashboard/reviews.html', data=data)
+    return render_template('dashboard/reviews.html')
 
 @dashboard.route('/dashboard/products', methods=['GET', 'POST'])
 @login_required
@@ -115,7 +94,7 @@ def products():
     product_data.groupby(['id', 'title', 'image_url', 'details_url',
                           'category', 'prod_material']).sales.sum().reset_index()
     product_data = product_data.sort_values(by='sales', ascending=False)
-    data = {'filter': get_filter_data(), 'products': product_data}
+    data = {'products': product_data}
     return render_template('dashboard/products.html', data=data)
 
 def save_picture(form_picture):
@@ -135,8 +114,6 @@ def save_picture(form_picture):
 @dashboard.route('/dashboard/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
-    data = {'filter': get_filter_data()}
-
     form = UpdateUserInfo()
     if form.validate_on_submit():
         if form.picture.data:
@@ -151,14 +128,13 @@ def settings():
         flash('Your account has been updated', 'success')
         return redirect(url_for('dashboard.settings'))
 
-    return render_template('dashboard/settings.html', data=data, form=form)
+    return render_template('dashboard/settings.html', form=form)
 
 
 @dashboard.route('/dashboard/calendar')
 @login_required
 def calendar():
-    data = {'filter': get_filter_data()}
-    return render_template('dashboard/calendar.html', data=data)
+    return render_template('dashboard/calendar.html')
 
 
 @dashboard.route('/dashboard/products/<id>')
@@ -193,7 +169,7 @@ def product_details(id):
         p_data = query_db(prom_query)
         r_data = query_db(rev_query)
 
-        data = {'filter': get_filter_data(), 'product': prod_data, 'availability': av_data, 'sales': s_data,
+        data = {'product': prod_data, 'availability': av_data, 'sales': s_data,
                 'promotions': p_data, 'reviews': r_data}
         return render_template('dashboard/details.html', data=data)
     else:
@@ -228,85 +204,8 @@ def filter_data():
     return redirect(url_for('dashboard.settings'))
 
 
-@dashboard.route('/bokeh')
-def bokeh():
-    query = """SELECT p.category, p.brand, p.occasion, p.collection, s.sales, d.month, d.quarter 
-                FROM sales s
-                LEFT JOIN product p ON s.product_id = p.id
-                LEFT JOIN date d on s.date_id = d.id"""
-    data = query_db(query);
-
-    genre_list = ['All','Horror', 'Comedy', 'Sci-Fi', 'Action', 'Drama', 'War']
-
-    controls = {
-        "reviews": Slider(title="Min # of reviews", value=100, start=100, end=140, step=10),
-        "min_year": Slider(title="Start Year", start=2001, end=2005, value=2001, step=1),
-        "max_year": Slider(title="End Year", start=2002, end=2006, value=2006, step=1),
-        "genre": Select(title="Genre", value="All", options=genre_list)
-    }
-    controls_array = controls.values()
-    source = ColumnDataSource()
-    source.data = dict(
-        x = [d for d in [4,5,6,7,8,9]],
-        y = [d for d in [1,3,4,5,7,8]],
-        color = ["#FF9900" for d in [4,1,2,3,12,1]],
-        title = [d for d in ['One', 'Two', 'Three', 'four', 'five', 'six']],
-        released = [d for d in [2001, 2002, 2003, 2004, 2005, 2006]],
-        imdbvotes = [d for d in [100,111,121, 131, 141, 151]],
-        genre = [d for d in ['Horror', 'Comedy', 'Sci-Fi', 'Action', 'Drama', 'War']]
-    )
-    callback = CustomJS(args=dict(source=source, controls=controls), code="""
-        if (!window.full_data_save) {
-            window.full_data_save = JSON.parse(JSON.stringify(source.data));
-        }
-        var full_data = window.full_data_save;
-        var full_data_length = full_data.x.length;
-        var new_data = { x: [], y: [], color: [], title: [], released: [], imdbvotes: [] }
-        for (var i = 0; i < full_data_length; i++) {
-            if (full_data.imdbvotes[i] === null || full_data.released[i] === null || full_data.genre[i] === null)
-                continue;
-            if (
-                full_data.imdbvotes[i] > controls.reviews.value &&
-                Number(full_data.released[i]) >= controls.min_year.value &&
-                Number(full_data.released[i]) <= controls.max_year.value &&
-                (controls.genre.value === 'All' || full_data.genre[i].split(",").some(ele => ele.trim() === controls.genre.value))
-            ) {
-                Object.keys(new_data).forEach(key => new_data[key].push(full_data[key][i]));
-            }
-        }
-        
-        source.data = new_data;
-        source.change.emit();
-    """)
-
-    fig = figure(plot_height=600, plot_width=720)
-
-    fig.circle(x="x", y="y", source=source, size=5, color="color", line_color=None)
-    fig.xaxis.axis_label = "IMDB Rating"
-    fig.yaxis.axis_label = "Rotten Tomatoes Rating"
-
-
-    for single_control in controls_array:
-        single_control.js_on_change('value', callback)
-
-    inputs_column = column(*controls_array, width=320, height=1000)
-    layout_row = row([ inputs_column, fig ])
-
-    curdoc().theme = "dark_minimal"
-    curdoc().add_root(layout_row)
-
-    script, div = components(layout_row)
-    return render_template(
-        'bookeh.html',
-        plot_script=script,
-        plot_div=div,
-        js_resources=INLINE.render_js(),
-        css_resources=INLINE.render_css(),
-    ).encode(encoding='UTF-8')
-
-def create_filters():
+def create_filters(data):
     filters = {'category':[], 'brand':[], 'occasion':[], 'collection':[], 'material':[]}
-    data = get_filter_data()
 
     filters['category'] = data.category.unique().tolist()
     filters['brand'] = data.brand.unique().tolist()
@@ -318,20 +217,6 @@ def create_filters():
         filters[key].insert(0, 'All')
 
     return filters
-
-@dashboard.route('/dashboard/get_data', methods=['POST'])
-def get_data():
-    query = """SELECT p.id, p.category, p.occasion, p.prod_material, p.brand, p.collection, s.sales, d.month, d.quarter, d.date
-                FROM sales s
-                LEFT JOIN product p ON s.product_id = p.id
-                LEFT JOIN date d on s.date_id = d.id"""
-    df = query_db(query);
-
-    df = df.groupby(['month', 'category', 'occasion', 'prod_material', 'brand', 'collection']).sales.sum().reset_index()
-    df.month = df.apply(lambda x: datetime.strptime(x.month, "%b").month, axis=1)
-    df = df.sort_values(by='month')
-    source = ColumnDataSource(df)
-    return source
 
 @dashboard.route('/bokeh2')
 def bokeh2():
@@ -346,11 +231,11 @@ def bokeh2():
     df = df.sort_values(by='month')
 
     print(df[:100])
-    filters = create_filters()
+    filters = create_filters(df)
 
     controls = {
-        "category": Select(title="Category", value="All", options=filters['category']),
-        "occasion": Select(title="Occasion", value="All", options=filters['occasion']),
+        "category": MultiSelect(title="Category", value=filters['category'], options=filters['category']),
+        "occasion": MultiChoice(title="Occasion", value=filters['occasion'], options=filters['occasion']),
         "material": Select(title="Material", value="All", options=filters['material']),
         "collection": Select(title="Collection", value="All", options=filters['collection']),
         "brand": Select(title="Brand", value="All", options=filters['brand']),
@@ -363,6 +248,7 @@ def bokeh2():
         
         if (!window.full_data_save) {
             window.full_data_save = JSON.parse(JSON.stringify(source.data));
+            
         }
         var full_data = window.full_data_save;
         var full_data_length = full_data.month.length;
@@ -411,66 +297,3 @@ def bokeh2():
         css_resources=INLINE.render_css(),
     ).encode(encoding='UTF-8')
 
-from jinja2 import Template
-
-from bokeh.sampledata.iris import flowers
-
-page = Template("""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  {{ resources }}
-</head>
-<body>
-  <div id="myplot"></div>
-  <div id="myplot2"></div>
-  <script>
-  fetch('/plot')
-    .then(function(response) { return response.json(); })
-    .then(function(item) { return Bokeh.embed.embed_item(item); })
-  </script>
-  <script>
-  fetch('/plot2')
-    .then(function(response) { return response.json(); })
-    .then(function(item) { return Bokeh.embed.embed_item(item, "myplot2"); })
-  </script>
-</body>
-""")
-
-colormap = {'setosa': 'red', 'versicolor': 'green', 'virginica': 'blue'}
-colors = [colormap[x] for x in flowers['species']]
-
-def make_plot(x, y):
-    p = figure(title = "Iris Morphology", sizing_mode="fixed", width=400, height=400)
-    p.xaxis.axis_label = x
-    p.yaxis.axis_label = y
-    p.circle(flowers[x], flowers[y], color=colors, fill_alpha=0.2, size=10)
-    return p
-from bokeh.io import curdoc
-@dashboard.route('/1')
-def root():
-    return page.render(resources=CDN.render())
-
-@dashboard.route('/plot')
-def plot():
-    query = """SELECT p.category, p.brand, p.occasion, p.collection, s.sales, d.month, d.quarter 
-                FROM sales s
-                LEFT JOIN product p ON s.product_id = p.id
-                LEFT JOIN date d on s.date_id = d.id"""
-    data = query_db(query);
-
-
-    p = figure(title = "Iris Morphology", sizing_mode="fixed", width=400, height=400)
-    curdoc().theme = "dark_minimal"
-    #curdoc().add_root(p)
-    p.xaxis.axis_label = 'month'
-    p.yaxis.axis_label = 'sales'
-    p.toolbar.active_drag=None
-    p.circle([12,42,13,54,2,765], [712,131,43,123,512,2], fill_alpha=0.2, size=10)
-
-    return json.dumps(json_item(p, "myplot"))
-
-@dashboard.route('/plot2')
-def plot2():
-    p = make_plot('sepal_width', 'sepal_length')
-    return json.dumps(json_item(p))

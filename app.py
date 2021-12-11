@@ -16,7 +16,7 @@ mail_settings = {
 db = SQLAlchemy()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'e591658b7c3d40649bc86aeca3590e99'
-app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{store.user}:{store.password}@{store.hostname}/dashboard'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{store.user}:{store.password}@{store.hostname}/newschema'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config.update(mail_settings)
 login_manager = LoginManager(app)
