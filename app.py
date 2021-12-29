@@ -3,7 +3,6 @@ from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail
 import store
-from sales import sales
 
 mail_settings = {
         "MAIL_SERVER":'smtp.gmail.com',
@@ -16,8 +15,6 @@ mail_settings = {
 
 db = SQLAlchemy()
 app = Flask(__name__)
-
-app.register_blueprint(sales)
 
 app.config['SECRET_KEY'] = 'e591658b7c3d40649bc86aeca3590e99'
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{store.user}:{store.password}@{store.hostname}/newschema'
@@ -43,13 +40,8 @@ def load_user(user_id):
 from main import main
 app.register_blueprint(main)
 
-
-
-
 from dashboard import dashboard
 app.register_blueprint(dashboard)
-
-
 
 
 if __name__ == '__main__':
