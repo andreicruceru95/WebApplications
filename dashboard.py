@@ -1,34 +1,38 @@
+#region Imports
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from werkzeug.datastructures import ImmutableMultiDict
 from flask_login import login_required, current_user
 from datetime import datetime
 from PIL import Image
 from bokeh.models import ColumnDataSource, MultiSelect, HoverTool, DataTable, TableColumn
-from bokeh.models import FuncTickFormatter, NumberFormatter, NumeralTickFormatter, DatetimeTickFormatter
+from bokeh.models import FuncTickFormatter, NumberFormatter, NumeralTickFormatter, HTMLTemplateFormatter
 from bokeh.models.callbacks import CustomJS
 from bokeh.resources import INLINE
 from bokeh.embed import components
-from bokeh.plotting import figure, curdoc
-from bokeh.layouts import column, row, layout
-from bokeh.palettes import Category20c, Spectral3
+from bokeh.plotting import figure
+from bokeh.layouts import row, layout
+from bokeh.models.widgets.tables import StringEditor, TextEditor
 from bokeh.transform import cumsum, dodge
 from numerize import numerize
 from math import pi
+from wordcloud import WordCloud, STOPWORDS
 
+import matplotlib.pyplot as plt
 import mysql.connector
 import pandas as pd
 import secrets
 import calendar as cal
 import store
-import json
 import os
-
 
 dashboard = Blueprint('dashboard', __name__)
 
 from app import db, app
 from models import UpdateUserInfo
 
+#endregion
+
+#region Database
 
 def connect():
     _db = mysql.connector.connect(user=store.user, password=store.password,
@@ -36,21 +40,28 @@ def connect():
                                   database='newschema')
     return _db
 
-
 def query_db(query):
     _db = connect()
     data = pd.read_sql(query, _db)
     _db.close()
     return data
 
+def alter_db(query):
+    _db = connect()
+    _cursor = _db.cursor()
+    _cursor.execute(query)
+    _cursor.close()
+    _db.commit()
+    _db.close()
+
 # region Database Query
 _colors =['#3182bd', '#6baed6', '#9ecae1', '#c6dbef', '#e6550d', '#fd8d3c', '#fdae6b', '#fdd0a2', '#31a354', '#74c476', '#a1d99b']
-sales_data = query_db("""SELECT p.category, p.occasion, p.prod_material, p.brand, p.collection, s.sales, d.month, d.quarter
+sales_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, p.collection, s.sales, d.month, d.quarter
                     FROM sales s
                     LEFT JOIN product p ON s.product_id = p.id
                     LEFT JOIN date d on s.date_id = d.id LIMIT 10000""")
 
-av_data = query_db("""SELECT p.id, p.category, p.occasion, p.prod_material, p.brand, p.collection, d.date, d.month, d.quarter, a.availability
+av_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, p.collection, d.date, d.month, d.quarter, a.availability
                     FROM availability a 
                     LEFT JOIN product p ON a.product_id = p.id
                     LEFT JOIN date d on a.date_id = d.id LIMIT 100000""")
@@ -65,7 +76,9 @@ pr_data = query_db("""SELECT p.id, p.category, p.occasion, p.prod_material, p.br
 pr_data['discount'] = pr_data.promotion_price/pr_data.regular_price
 pr_data.date = pd.to_datetime(pr_data.date, dayfirst=False).dt.strftime("%Y/%m/%d")
 
-product_data = query_db("""SELECT p.id, p.title, p.image_url, d.quarter, sum(s.sales) as sales
+product_data = query_db("""SELECT p.id as product_id, p.title as product_title, 
+        p.category, p.occasion, p.collection, p.prod_material, p.brand, d.month,
+        p.image_url, d.quarter, sum(s.sales) as sales
         FROM sales s
         LEFT  JOIN product p on p.id = s.product_id
         left join date d on s.date_id = d.id
@@ -73,10 +86,10 @@ product_data = query_db("""SELECT p.id, p.title, p.image_url, d.quarter, sum(s.s
         """)
 
 review_data = query_db("""
-        SELECT re.product_id, re.rating, re.title, 
+        SELECT re.product_id, re.rating, re.title AS review_title, 
 	    re.review_text, re.review_source, r.location,
-        r.gender, r.age_group, re.review_date, rp.reply_text,
-        p.category, p.occasion, p.brand, p.collection, p.prod_material
+        r.gender, r.age_group, re.review_date, rp.reply_text, p.title AS product_title, 
+        p.category, p.occasion, p.brand, p.collection, p.prod_material, p.image_url
         FROM review re
         LEFT JOIN reviewer r ON re.reviewer_id = r.id
         LEFT JOIN reply rp ON re.id = rp.review_id
@@ -87,7 +100,16 @@ review_data.review_date = pd.to_datetime(review_data.review_date, dayfirst=False
 review_data['month'] = review_data.review_date.dt.month
 review_data.month = review_data.month.apply(lambda x: cal.month_abbr[x])
 
+text_template = """<span href="#" data-toggle="tooltip" title="<%= value %>" style="font-size: 15px;"><%= value %></span>"""
+pr_title_template = """<img src="<%= image_url %>" style="width:50px;height:50px;border:0">
+                    <a href="http://127.0.0.1:5000/dashboard/products/<%= product_id %>" target="_blank" style="text-decoration: none; color: black;">
+                    <span data-toggle="tooltip" title="<%= value %>" style="font-size: 15px;"><%= value %></span>"""
+sales_val_template = """<span href="#" data-toggle="tooltip" title="<%= value %>" style="font-size: 15px;">£ <%= value %></span>"""
 # endregion
+
+#endregion
+
+#region Non-Routing Methods
 
 def create_filters(df):
     filters = dict()
@@ -117,7 +139,11 @@ def get_controls_list(controls):
 
 def percentage_change(col1,col2):
     pct = ((col2 - col1) / col1) * 100
-    return round(pct, 1)
+    if pct > 0:
+        return """<span><i class="fas fa-arrow-alt-circle-up text-success"></i></span>"""
+    elif pct < 0:
+        return """<span><i class="fas fa-arrow-alt-circle-down text-danger"></i></span>"""
+    return """<span><i class="fas fa-equals text-warning"></i></span>"""
 
 def human_readable(val):
     return numerize.numerize(val)
@@ -185,25 +211,6 @@ def get_summary_sales():
     #curdoc().add_root(plot)
     return plot
 
-@dashboard.route('/dashboard/summary')
-@login_required
-def summary():
-    script_summary_sales, div_summary_sales = components(get_summary_sales())
-    script_summary_sales2, div_summary_sales2 = components(get_summary_sales())
-    card_data = get_cards_data()
-
-
-    return render_template(
-        'dashboard/dashboard.html',
-        card_data = card_data,
-        ch1_plot_script=script_summary_sales,
-        ch1_plot_script2=script_summary_sales2,
-        ch1_plot_div=div_summary_sales,
-        ch1_plot_div2=div_summary_sales2,
-        ch1_js_resources=INLINE.render_js(),
-        ch1_css_resources=INLINE.render_css(),
-    ).encode(encoding='UTF-8')
-
 def style_plot(plot, title_text):
     plot.background_fill_color = "#24282e"
     plot.background_fill_alpha = 0.5
@@ -238,31 +245,99 @@ def filter_data(dataframe, data):
 
     return df
 
+def save_picture(form_picture):
+    random_hex = secrets.token_hex(8)
+    _, f_ext = os.path.splitext(form_picture.filename)
+    picture_fn = random_hex + f_ext
+    picture_path = os.path.join(app.root_path, 'static/profile_pics', picture_fn)
+
+    # resize img
+    output_size = (125, 125)
+    i = Image.open(form_picture)
+    i.thumbnail(output_size)
+    i.save(picture_path)
+
+    return picture_fn
+
+#endregion
+
 # region Refresh Data
+
+#region sales
 @dashboard.route("/refresh_sales0", methods=['POST'])
 def refresh_sales_0():
     data = ImmutableMultiDict(request.values).to_dict(flat=False)
-    df = filter_data(sales_data, data)
-    t_sales = df.groupby('brand').sales.sum().reset_index()
-    t_sales.rename(columns={'sales': 'total_sales'}, inplace=True)
-    q_sales = df.groupby(['brand', 'quarter']) \
-        .sales.sum() \
-        .reset_index() \
+    df = filter_data(product_data, data)
+    qsales = df.groupby(['product_id', 'quarter']).sales.sum().reset_index() \
         .pivot(
         values='sales',
-        index='brand',
+        index='product_id',
         columns='quarter'
-    )
-    data = q_sales.merge(t_sales, how='left', on='brand')
-    data = data.sort_values(by='total_sales', ascending=False)
+    ).reset_index().rename_axis(None, axis=1)
+    qsales.rename(columns={'2021-Q1': 'q1', '2021-Q2': 'q2', '2021-Q3': 'q3', '2021-Q4': 'q4'}, inplace=True)
 
-    brand = list(data.brand)
-    q1 = list(data['2021-Q1'])
-    q2 = list(data['2021-Q2'])
-    q3 = list(data['2021-Q3'])
-    q4 = list(data['2021-Q4'])
-    t = list(data['total_sales'])
-    response = jsonify({'brand':brand, 'q1':q1, 'q2':q2, 'q3':q3, 'q4':q4, 't':t})
+    #region Computation
+
+    qsales['q1_change'] = """<span><i class="fas fa-equals text-warning"></i></span>"""
+    try:
+        qsales['q2_change'] = qsales.apply(lambda x: percentage_change(x['q1'], x['q2']), axis=1)
+    except:
+        qsales['q2_change'] = """<span><i class="fas fa-equals text-warning"></i></span>"""
+
+    try:
+        qsales['q3_change'] = qsales.apply(lambda x: percentage_change(x['q2'], x['q3']), axis=1)
+    except:
+        qsales['q3_change'] = """<span><i class="fas fa-equals text-warning"></i></span>"""
+    try:
+        qsales['q4_change'] = qsales.apply(lambda x: percentage_change(x['q3'], x['q4']), axis=1)
+    except:
+        qsales['q4_change'] = """<span><i class="fas fa-equals text-warning"></i></span>"""
+
+    qsales['sales']=0
+    for c in ['q1', 'q2', 'q3', 'q4']:
+        try:
+            qsales['sales'] = qsales.apply(lambda x: x['sales']+ x[c], axis=1)
+        except:
+            continue
+
+    data = qsales.merge(df[['product_id', 'product_title', 'image_url']], how='left', on='product_id')
+    data = data.drop_duplicates()
+    data = data.sort_values(by='sales', ascending=False)
+
+    try:
+        data['q1'] = data.apply(lambda x: human_readable(x['q1']), axis=1)
+    except:
+        data['q1'] = None
+    try:
+        data['q2'] = data.apply(lambda x: human_readable(x['q2']), axis=1)
+    except:
+        data['q2'] = None
+    try:
+        data['q3'] = data.apply(lambda x: human_readable(x['q3']), axis=1)
+    except:
+        data['q3'] = None
+    try:
+        data['q4'] = data.apply(lambda x: human_readable(x['q4']), axis=1)
+    except:
+        data['q4'] = None
+    data['sales'] = data.apply(lambda x: human_readable(x['sales']), axis=1)
+
+    #endregion
+
+    response = jsonify({
+        'image_url': list(data.image_url),
+        'product_title': list(data.product_title),
+        'product_id': list(data.product_id),
+        'q1': list(data.q1),
+        'q1_change': list(data.q1_change),
+        'q2': list(data.q2),
+        'q2_change': list(data.q2_change),
+        'q3': list(data.q3),
+        'q3_change': list(data.q3_change),
+        'q4': list(data.q4),
+        'q4_change': list(data.q4_change),
+        'sales': list(data.sales),
+    })
     return response
 
 @dashboard.route("/refresh_sales1", methods=['POST'])
@@ -342,13 +417,15 @@ def refresh_sales_5():
     y = list(df.sales)
     response = jsonify({'x': x, 'y': y})
     return response
+#endregion
 
+#region availability
 @dashboard.route("/refresh_av0", methods=['POST'])
 def refresh_av_0():
     data = ImmutableMultiDict(request.values).to_dict(flat=False)
     df = filter_data(av_data, data)
     df.date = pd.to_datetime(df.date, dayfirst=False).dt.strftime("%Y/%m/%d")
-    tprod = df.id.nunique()
+    tprod = df.product_id.nunique()
     df = df[df.availability == 'In Stock']
     df = df.groupby('date').availability.count().reset_index()
     df.availability = df.availability / tprod
@@ -461,6 +538,9 @@ def refresh_av_3():
     response=jsonify({'x':x, 'y':y})
     return response
 
+#endregion
+
+#region promotion
 @dashboard.route("/refresh_pr1", methods=['POST'])
 def refresh_pr_1():
     data = ImmutableMultiDict(request.values).to_dict(flat=False)
@@ -490,7 +570,8 @@ def refresh_pr_2():
     data = promo_price.merge(promo_count, how='left', on='category')
     data = data.merge(reg_price, how='left', on='category')
     data['avg_discount'] = (data['avg_regular_price'] - data['avg_promotion_price'])/data['avg_regular_price']
-
+    data['avg_promotion_price'] = data.apply(lambda x: human_readable(x['avg_promotion_price']), axis=1)
+    data['avg_regular_price'] = data.apply(lambda x: human_readable(x['avg_regular_price']), axis=1)
     category = data.category.tolist()
     total_promotions=data.total_promotions.tolist()
     avg_regular_price=data.avg_regular_price.tolist()
@@ -502,7 +583,128 @@ def refresh_pr_2():
                         'avg_discount':avg_discount})
     return response
 
+#endregion
+
+#region reviews
+
+@dashboard.route("/refresh_re1", methods=['POST'])
+def refresh_reviews_1():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+
+    t_rev = df.shape[0]
+    df = df.groupby('gender').rating.count().reset_index()
+    df.rating = df.rating / t_rev
+
+    x = list(df.gender)
+    y = list(df.rating)
+    response = jsonify({'x': x, 'y': y})
+    return response
+
+@dashboard.route("/refresh_re2", methods=['POST'])
+def refresh_reviews_2():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+    t_rev = df.shape[0]
+    df = df.groupby('review_source').rating.count().reset_index()
+    df.rating = df.rating / t_rev
+
+    x = list(df.review_source)
+    y = list(df.rating)
+    response = jsonify({'x': x, 'y': y})
+    return response
+
+@dashboard.route("/refresh_re3", methods=['POST'])
+def refresh_reviews_3():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+    t_rev = df.shape[0]
+    df.loc[df.rating <= 3, 'review_score'] = 'negative'
+    df.loc[df.rating > 3, 'review_score'] = 'positive'
+    df = df.groupby('review_score').rating.count().reset_index()
+    df.rating = df.rating / t_rev
+
+    x = list(df.review_score)
+    y = list(df.rating)
+    response = jsonify({'x': x, 'y': y})
+    return response
+
+@dashboard.route("/refresh_re4", methods=['POST'])
+def refresh_reviews_4():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+    t_rev = df.shape[0]
+    #df['rating_hr'] = df.apply(lambda x: str(x['rating']) + ' stars', axis=1)
+    df['rating_hr'] = [str(ele) + ' starts' for ele in df['rating']]
+    df = df.groupby('rating_hr').review_source.count().reset_index()
+    df.review_source = df.review_source / t_rev
+
+    x = list(df.rating_hr)
+    y = list(df.review_source)
+    response = jsonify({'x': x, 'y': y})
+    return response
+
+@dashboard.route("/refresh_re5", methods=['POST'])
+def refresh_reviews_5():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+    t_rev = df.shape[0]
+    df = df.groupby('age_group').rating.count().reset_index()
+    df.rating = df.rating / t_rev
+
+    x = list(df.age_group)
+    y = list(df.rating)
+    response = jsonify({'x': x, 'y': y})
+    return response
+
+@dashboard.route("/refresh_re6", methods=['POST'])
+def refresh_reviews_6():
+    data = ImmutableMultiDict(request.values).to_dict(flat=False)
+    df = filter_data(review_data, data)
+    df = df[['product_id', 'review_date', 'image_url', 'review_title', 'review_text', 'product_title', 'rating']].copy()
+    df.review_date = pd.to_datetime(df.review_date).dt.strftime('%d-%m-%Y')
+    df.fillna('', inplace=True)
+    df.loc[
+        df.image_url == '', 'image_url'] = 'https://i1.wp.com/fremontgurdwara.org/wp-content/uploads/2020/06/no-image-icon-2.png'
+    df.loc[df.product_title == '', 'product_title'] = 'Product Unknown'
+    df.loc[df.product_id == '', 'product_id'] = 0
+
+    response=jsonify({
+        'review_date' : list(df.review_date),
+        'image_url' : list(df.image_url),
+        'review_title' : list(df.review_title),
+        'review_text' : list(df.review_text),
+        'product_title' : list(df.product_title),
+        'product_id' : list(df.product_id),
+        'rating' : list(df.rating),
+    })
+
+    return response
+
+#endregion
+
 # endregion
+
+#region Pages
+
+@dashboard.route('/dashboard/summary')
+@login_required
+def summary():
+    script_summary_sales, div_summary_sales = components(get_summary_sales())
+    script_summary_sales2, div_summary_sales2 = components(get_summary_sales())
+    card_data = get_cards_data()
+
+
+    return render_template(
+        'dashboard/dashboard.html',
+        card_data = card_data,
+        ch1_plot_script=script_summary_sales,
+        ch1_plot_script2=script_summary_sales2,
+        ch1_plot_div=div_summary_sales,
+        ch1_plot_div2=div_summary_sales2,
+        ch1_js_resources=INLINE.render_js(),
+        ch1_css_resources=INLINE.render_css(),
+    ).encode(encoding='UTF-8')
 
 @dashboard.route('/dashboard/sales')
 @login_required
@@ -514,32 +716,44 @@ def sales():
     #endregion
 
     # region DataTable
-    t_sales = sales_data.groupby('brand').sales.sum().reset_index()
-    t_sales.rename(columns={'sales': 'total_sales'}, inplace=True)
-    q_sales = sales_data.groupby(['brand', 'quarter']) \
-        .sales.sum() \
-        .reset_index() \
+    # region data
+    qsales = product_data.groupby(['product_id', 'quarter']).sales.sum().reset_index() \
         .pivot(
         values='sales',
-        index='brand',
+        index='product_id',
         columns='quarter'
-    )
-    data = q_sales.merge(t_sales, how='left', on='brand')
-    data = data.sort_values(by='total_sales', ascending=False)
-    dt_source = ColumnDataSource(data)
-    columns = [
-        TableColumn(field='brand', title="Brand"),
-        TableColumn(field='2021-Q1', title="Q1", formatter=NumberFormatter(format='$0,0.00')),
-        TableColumn(field='2021-Q2', title="Q2", formatter=NumberFormatter(format='$0,0.00')),
-        TableColumn(field='2021-Q3', title="Q3", formatter=NumberFormatter(format='$0,0.00')),
-        TableColumn(field='2021-Q4', title="Q4", formatter=NumberFormatter(format='$0,0.00')),
-        TableColumn(field='total_sales', title="Total Sales", formatter=NumberFormatter(format='$0,0.00')),
-    ]
-    data_table = DataTable(source=dt_source, columns=columns, height=500, index_position=None,
-                           auto_edit=True, sizing_mode='stretch_width', background=None,
-                           )
+    ).reset_index().rename_axis(None, axis=1)
+    qsales.rename(columns={'2021-Q1': 'q1', '2021-Q2': 'q2', '2021-Q3': 'q3', '2021-Q4': 'q4'}, inplace=True)
 
-    dt_callback = CustomJS(args=dict(source=dt_source, controls=controls), code="""
+    qsales['q1_change'] = """<span><i class="fas fa-equals text-warning"></i></span>"""
+    qsales['q2_change'] = qsales.apply(lambda x: percentage_change(x['q1'], x['q2']), axis=1)
+    qsales['q3_change'] = qsales.apply(lambda x: percentage_change(x['q2'], x['q3']), axis=1)
+    qsales['q4_change'] = qsales.apply(lambda x: percentage_change(x['q3'], x['q4']), axis=1)
+    qsales['sales'] = qsales.apply(lambda x: x['q1'] + x['q2'] + x['q3'] + x['q4'], axis=1)
+
+    data = qsales.merge(product_data[['product_id', 'product_title', 'image_url']], how='left', on='product_id')
+    data = data.drop_duplicates()
+    data = data.sort_values(by='sales', ascending=False)
+    data['q1'] = data.apply(lambda x: human_readable(x['q1']), axis=1)
+    data['q2'] = data.apply(lambda x: human_readable(x['q2']), axis=1)
+    data['q3'] = data.apply(lambda x: human_readable(x['q3']), axis=1)
+    data['q4'] = data.apply(lambda x: human_readable(x['q4']), axis=1)
+    data['sales'] = data.apply(lambda x: human_readable(x['sales']), axis=1)
+    #endregion
+
+    dt_source2 = ColumnDataSource(data)
+    columns = [
+        TableColumn(field='product_title', title="Product", formatter=HTMLTemplateFormatter(template=pr_title_template)),
+        TableColumn(field='q1', title="Q1", formatter=HTMLTemplateFormatter(template= sales_val_template + " <%= q1_change %>")),
+        TableColumn(field='q2', title="Q2", formatter=HTMLTemplateFormatter(template= sales_val_template + " <%= q2_change %>")),
+        TableColumn(field='q3', title="Q3", formatter=HTMLTemplateFormatter(template= sales_val_template + " <%= q3_change %>")),
+        TableColumn(field='q4', title="Q4", formatter=HTMLTemplateFormatter(template= sales_val_template + " <%= q4_change %>")),
+        TableColumn(field='sales', title="Total Sales", formatter=HTMLTemplateFormatter(template= sales_val_template)),
+    ]
+    data_table2 = DataTable(source=dt_source2, columns=columns, height=500, row_height=50, index_position=None,
+                           sizing_mode='stretch_width', background=None, css_classes=['bokeh-table'])
+
+    dt_callback = CustomJS(args=dict(source=dt_source2, controls=controls), code="""
             var selected_value = new Object();
 
             for (let key of Object.keys(controls)) {
@@ -556,12 +770,17 @@ def sales():
                 data: selected_value,
                 dataType: 'json',
                 success: function (json_from_server) {
-                    plot_data.brand = json_from_server.brand;
-                    plot_data.total_sales = json_from_server.t; 
-                    plot_data["2021-Q1"] = json_from_server.q1; 
-                    plot_data["2021-Q2"] = json_from_server.q2; 
-                    plot_data["2021-Q3"] = json_from_server.q3; 
-                    plot_data["2021-Q4"] = json_from_server.q4; 
+                    plot_data.product_title = json_from_server.product_title;
+                    plot_data.image_url = json_from_server.image_url; 
+                    plot_data.q1 = json_from_server.q1; 
+                    plot_data.q1_change = json_from_server.q1_change; 
+                    plot_data.q2 = json_from_server.q2; 
+                    plot_data.q2_change = json_from_server.q2_change; 
+                    plot_data.q3 = json_from_server.q3; 
+                    plot_data.q3_change = json_from_server.q3_change; 
+                    plot_data.q4 = json_from_server.q4; 
+                    plot_data.q4_change = json_from_server.q4_change; 
+                    plot_data.sales = json_from_server.sales; 
                     source.change.emit();
                 },
                 error: function() {
@@ -897,6 +1116,8 @@ def sales():
                 """)
     #endregion
 
+    #region Callbacks
+
     for single_control in controls_array:
         single_control.js_on_change('value', plot1_callback)
         single_control.js_on_change('value', plot2_callback)
@@ -905,17 +1126,23 @@ def sales():
         single_control.js_on_change('value', plot5_callback)
         single_control.js_on_change('value', dt_callback)
 
+    #endregion
+
+    #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
 
     _layout = layout(children=[
             [filters_row],
             [plot2, plot5],
             [plot1],
-            [data_table],
+            #[data_table],
             [plot3, plot4],
+            [data_table2]
         ],
     sizing_mode='stretch_width')
     script, div = components(_layout)
+
+    #endregion
 
     return render_template('dashboard/sales.html',
                            script=script,
@@ -927,6 +1154,7 @@ def sales():
 @dashboard.route('/dashboard/availability')
 @login_required
 def availability():
+
     # region Filters
     filters = create_filters(av_data)  # Create the filters
     controls = create_controls(filters)  # Create the Controls for filters
@@ -935,7 +1163,7 @@ def availability():
 
     # region Plot1
     av_plot1_df = av_data[av_data.availability == 'In Stock']
-    tprod = av_plot1_df.id.nunique()
+    tprod = av_plot1_df.product_id.nunique()
     av_plot1_df = av_plot1_df.groupby('date').availability.count().reset_index()
     av_plot1_df.availability = av_plot1_df.availability/tprod
     av_plot1_df = av_plot1_df.sort_values(by='date')
@@ -953,7 +1181,7 @@ def availability():
     av_plot1.line('x', 'y', source=av_plot1_source, line_width=3, line_alpha=0.6)
     av_plot1.xaxis.axis_label = "Date"
     av_plot1.yaxis.axis_label = "Availability"
-    av_plot1.xaxis.major_label_orientation = pi / 4
+    av_plot1.xaxis.major_label_orientation = pi/4
     av_plot1.add_tools(HoverTool(
         tooltips=[
             ('Date', '@{x}'),
@@ -1044,7 +1272,7 @@ def availability():
         TableColumn(field='avg_y', title="AVG Year", formatter=NumberFormatter(format='0.00%')),
     ]
     data_table1 = DataTable(source=dt_source, columns=columns, height=500, index_position=None,
-                           auto_edit=True, sizing_mode='stretch_width', background=None,
+                           auto_edit=True, sizing_mode='stretch_width', background=None, css_classes=['bokeh-table']
                            )
 
     dt1_callback = CustomJS(args=dict(source=dt_source, controls=controls), code="""
@@ -1198,12 +1426,15 @@ def availability():
                     """)
     #endregion
 
+    # region Callbacks
     for single_control in controls_array:
         single_control.js_on_change('value', av_plot1_callback)
         single_control.js_on_change('value', dt1_callback)
         single_control.js_on_change('value', av_plot2_callback)
         single_control.js_on_change('value', av_plot3_callback)
+    #endregion
 
+    #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
     _layout = layout(children=[
         [filters_row],
@@ -1213,6 +1444,7 @@ def availability():
     ],
         sizing_mode='stretch_width')
     script, div = components(_layout)
+    #endregion
 
     return render_template('dashboard/availability.html',
                            script=script,
@@ -1226,8 +1458,8 @@ def availability():
 def promotions():
 
     # region Filters
-    filters = create_filters(pr_data)  # Create the filters
-    controls = create_controls(filters)  # Create the Controls for filters
+    filters = create_filters(pr_data)
+    controls = create_controls(filters)
     controls_array = get_controls_list(controls)
     # endregion
 
@@ -1285,6 +1517,7 @@ def promotions():
     # endregion
 
     #region DataTable1
+
     promo_price = pr_data.groupby('category').promotion_price.mean().reset_index()
     promo_price.rename(columns={'promotion_price':'avg_promotion_price'}, inplace=True)
     promo_count = pr_data[pr_data.promotion_price > 0].groupby('category').promotion_price.count().reset_index()
@@ -1294,18 +1527,20 @@ def promotions():
     data = promo_price.merge(promo_count, how='left', on='category')
     data = data.merge(reg_price, how='left', on='category')
     data['avg_discount'] = (data['avg_regular_price'] - data['avg_promotion_price'])/data['avg_regular_price']
+    data['avg_promotion_price']  = data.apply(lambda x: human_readable(x['avg_promotion_price']), axis=1)
+    data['avg_regular_price']  = data.apply(lambda x: human_readable(x['avg_regular_price']), axis=1)
 
     data = data.sort_values(by='avg_discount', ascending=False)
     dt_source = ColumnDataSource(data)
     columns = [
         TableColumn(field='category', title="Category"),
         TableColumn(field='total_promotions', title="Promotion Count", formatter=NumberFormatter(format='+0,0')),
-        TableColumn(field='avg_regular_price', title="Avg Regular Price", formatter=NumberFormatter(format='$0,0.00')),
-        TableColumn(field='avg_promotion_price', title="Avg Promotion Price", formatter=NumberFormatter(format='$0,0.00')),
+        TableColumn(field='avg_regular_price', title="Avg Regular Price", formatter=HTMLTemplateFormatter(template=sales_val_template)),
+        TableColumn(field='avg_promotion_price', title="Avg Promotion Price", formatter=HTMLTemplateFormatter(template=sales_val_template)),
         TableColumn(field='avg_discount', title="Avg Discount", formatter=NumberFormatter(format='0.00%')),
     ]
     data_table = DataTable(source=dt_source, columns=columns, height=300, index_position=None,
-                           auto_edit=True, sizing_mode='stretch_width', background=None,
+                           auto_edit=True, sizing_mode='stretch_width', background=None, css_classes=['bokeh-table']
                            )
 
     dt_callback = CustomJS(args=dict(source=dt_source, controls=controls), code="""
@@ -1340,10 +1575,14 @@ def promotions():
                 """)
     #endregion
 
+    #region Callbacks
     for single_control in controls_array:
         single_control.js_on_change('value', pr_plot1_callback)
         single_control.js_on_change('value', dt_callback)
 
+    #endregion
+
+    #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
     _layout = layout(children=[
         [filters_row],
@@ -1353,13 +1592,14 @@ def promotions():
         sizing_mode='stretch_width')
     script, div = components(_layout)
 
+    #endregion
+
     return render_template('dashboard/promotions.html',
                            script=script,
                            div=div,
                            js_resources=INLINE.render_js(),
                            css_resources=INLINE.render_css()
                            ).encode(encoding='UTF-8')
-
 
 @dashboard.route('/dashboard/reviews')
 @login_required
@@ -1376,13 +1616,12 @@ def reviews():
     t_rev = review_data.shape[0]
     re_plot1_df = review_data.groupby('gender').rating.count().reset_index()
     re_plot1_df.rating = re_plot1_df.rating/t_rev
-    print(re_plot1_df)
 
     re_plot1_x = re_plot1_df['gender']
     re_plot1_y = re_plot1_df['rating']
     re_plot1_source = ColumnDataSource(data=dict(x=re_plot1_x, y=re_plot1_y))
     re_plot1 = figure(x_range=re_plot1_x, plot_height=400, tools='save')
-    re_plot1 = style_plot(re_plot1, 'Reviews by Gender')
+    re_plot1 = style_plot(re_plot1, 'Gender Distribution')
     re_plot1.vbar(x='x',
                   top='y',
                   width=0.9,
@@ -1416,7 +1655,7 @@ def reviews():
 
                         jQuery.ajax({
                             type: 'POST',
-                            url: '/refresh_av3',
+                            url: '/refresh_re1',
                             data: selected_value,
                             dataType: 'json',
                             success: function (json_from_server) {
@@ -1441,7 +1680,7 @@ def reviews():
     re_plot2_y = re_plot2_df['rating']
     re_plot2_source = ColumnDataSource(data=dict(x=re_plot2_x, y=re_plot2_y))
     re_plot2 = figure(x_range=re_plot2_x, plot_height=400, tools='save')
-    re_plot2 = style_plot(re_plot2, 'Reviews by Source')
+    re_plot2 = style_plot(re_plot2, 'Source Distribution')
     re_plot2.vbar(x='x',
                   top='y',
                   width=0.9,
@@ -1475,7 +1714,7 @@ def reviews():
 
                             jQuery.ajax({
                                 type: 'POST',
-                                url: '/refresh_av3',
+                                url: '/refresh_re2',
                                 data: selected_value,
                                 dataType: 'json',
                                 success: function (json_from_server) {
@@ -1502,7 +1741,7 @@ def reviews():
     re_plot3_y = re_plot3_df['rating']
     re_plot3_source = ColumnDataSource(data=dict(x=re_plot3_x, y=re_plot3_y))
     re_plot3 = figure(x_range=re_plot3_x, plot_height=400, tools='save')
-    re_plot3 = style_plot(re_plot3, 'Reviews by Score')
+    re_plot3 = style_plot(re_plot3, 'Score Distribution')
     re_plot3.vbar(x='x',
                   top='y',
                   width=0.9,
@@ -1536,7 +1775,7 @@ def reviews():
 
                                 jQuery.ajax({
                                     type: 'POST',
-                                    url: '/refresh_av3',
+                                    url: '/refresh_re3',
                                     data: selected_value,
                                     dataType: 'json',
                                     success: function (json_from_server) {
@@ -1554,7 +1793,8 @@ def reviews():
     # endregion
 
     # region Plot4
-    review_data['rating_hr'] = review_data.apply(lambda x: str(x['rating']) + ' stars', axis=1)
+    #review_data['rating_hr'] = review_data.apply(lambda x: str(x['rating']) + ' stars', axis=1)
+    review_data['rating_hr'] = [str(ele) + ' starts' for ele in review_data['rating']]
     re_plot4_df = review_data.groupby('rating_hr').review_source.count().reset_index()
     re_plot4_df.review_source = re_plot4_df.review_source / t_rev
 
@@ -1562,7 +1802,7 @@ def reviews():
     re_plot4_y = re_plot4_df['review_source']
     re_plot4_source = ColumnDataSource(data=dict(x=re_plot4_x, y=re_plot4_y))
     re_plot4 = figure(x_range=re_plot4_x, plot_height=400, tools='save')
-    re_plot4 = style_plot(re_plot4, 'Reviews by Rating')
+    re_plot4 = style_plot(re_plot4, 'Star Rating Distribution')
     re_plot4.vbar(x='x',
                   top='y',
                   width=0.9,
@@ -1570,7 +1810,7 @@ def reviews():
                   color="#c9d9d3")
     re_plot4.xgrid.grid_line_color = None
     re_plot4.y_range.start = 0
-    re_plot4.xaxis.axis_label = "Rating"
+    re_plot4.xaxis.axis_label = " Star Rating"
     re_plot4.yaxis.axis_label = "# Reviews"
     re_plot4.xaxis.major_label_orientation = pi / 4
     re_plot4.yaxis.formatter = NumeralTickFormatter(format='0%')
@@ -1596,7 +1836,7 @@ def reviews():
 
                                     jQuery.ajax({
                                         type: 'POST',
-                                        url: '/refresh_av3',
+                                        url: '/refresh_re4',
                                         data: selected_value,
                                         dataType: 'json',
                                         success: function (json_from_server) {
@@ -1655,7 +1895,7 @@ def reviews():
 
                                         jQuery.ajax({
                                             type: 'POST',
-                                            url: '/refresh_av3',
+                                            url: '/refresh_re5',
                                             data: selected_value,
                                             dataType: 'json',
                                             success: function (json_from_server) {
@@ -1672,13 +1912,96 @@ def reviews():
                                         """)
     # endregion
 
-    #for single_control in controls_array:
+    # region DataTable
+    rev_df = review_data[['product_id', 'review_date', 'image_url', 'review_title', 'review_text', 'product_title', 'rating']].copy()
+    rev_df.review_date = pd.to_datetime(rev_df.review_date).dt.strftime('%d-%m-%Y')
+    rev_df.fillna('', inplace=True)
+    rev_df.loc[rev_df.image_url == '', 'image_url'] = 'https://i1.wp.com/fremontgurdwara.org/wp-content/uploads/2020/06/no-image-icon-2.png'
+    rev_df.loc[rev_df.product_title == '', 'product_title'] = 'Product Unknown'
+    rev_df.loc[rev_df.product_id == '', 'product_id'] = 0
+    rev_df = rev_df.sort_values(by='review_date', ascending=False)
+
+    dt_source = ColumnDataSource(rev_df)
+
+    columns = [
+        TableColumn(field='review_date', title="Date", formatter=HTMLTemplateFormatter(template=text_template)),
+        TableColumn(field='product_title', title="Product", formatter=HTMLTemplateFormatter(template=pr_title_template)),
+        TableColumn(field='review_title', title="Review Summary", formatter=HTMLTemplateFormatter(template=text_template)),
+        TableColumn(field='review_text', title="Review Text", formatter=HTMLTemplateFormatter(template=text_template)),
+        TableColumn(field='rating', title="Rating", formatter=HTMLTemplateFormatter(template=text_template)),
+    ]
+    data_table = DataTable(source=dt_source, columns=columns, height=500, row_height=50, index_position=None,
+                           sizing_mode='stretch_width', background=None, css_classes=['bokeh-table'])
+    re_dt_callback = CustomJS(args=dict(source=dt_source, controls=controls), code="""
+               var selected_value = new Object();
+
+               for (let key of Object.keys(controls)) {
+                   var val = controls[key].value;
+                   // console.log(key, val);
+                   selected_value[key] = val;
+               }
+               //alert(Object.keys(controls));
+               var plot_data = source.data;
+
+               jQuery.ajax({
+                   type: 'POST',
+                   url: '/refresh_re6',
+                   data: selected_value,
+                   dataType: 'json',
+                   success: function (json_from_server) {
+                       plot_data.review_date = json_from_server.review_date;
+                       plot_data.product_title = json_from_server.product_title; 
+                       plot_data.product_id = json_from_server.product_id; 
+                       plot_data.review_title = json_from_server.review_title; 
+                       plot_data.review_text = json_from_server.review_text; 
+                       plot_data.rating = json_from_server.rating; 
+                       plot_data.image_url = json_from_server.image_url; 
+                       source.change.emit();
+                   },
+                   error: function() {
+                       alert("Oh no, something went wrong. Search for an error " +
+                             "message in Flask log and browser developer tools.");
+                   }
+               });
+               """)
+    # endregion
+
+    #region WordCloud
+    stopwords = set(STOPWORDS)
+    text = ' '.join(r for r in review_data.review_text)
+    wordcloud = WordCloud(stopwords=stopwords).generate(text)
+    plt.imshow(wordcloud, interpolation='bilinear')
+    plt.axis("off")
+    plt.savefig('static/img/cloud.png')
+
+    wcdata=review_data.loc[:0, :]
+    wcdata['cloud']='http://127.0.0.1:5000/static/img/cloud.png'
+    wc_source=ColumnDataSource(wcdata)
+
+    columns = [
+        TableColumn(field='cloud', title="Customer Sentiment",
+                    formatter=HTMLTemplateFormatter(template="""<img src="<%= cloud%>" style="width:400px;height:290px;border:0">""")),
+    ]
+    wc_table = DataTable(source=wc_source, columns=columns, height=300, width=410, row_height=250, index_position=None,
+                          sizing_mode='fixed', background=None, css_classes=['bokeh-table'])
+
+    #endregion
+
+    for single_control in controls_array:
+        single_control.js_on_change('value', re_plot1_callback)
+        single_control.js_on_change('value', re_plot2_callback)
+        single_control.js_on_change('value', re_plot3_callback)
+        single_control.js_on_change('value', re_plot4_callback)
+        single_control.js_on_change('value', re_plot5_callback)
+        single_control.js_on_change('value', re_dt_callback)
 
     filters_row = row(*controls_array, background="#24282e", margin=(10, 0, 10, 0))
     _layout = layout(children=[
         [filters_row],
         [re_plot1, re_plot2, re_plot3],
-        [re_plot4, re_plot5]
+        [re_plot4, re_plot5],
+        [data_table],
+        [wc_table]
     ],
         sizing_mode='stretch_width')
     script, div = components(_layout)
@@ -1690,51 +2013,62 @@ def reviews():
                            css_resources=INLINE.render_css()
                            ).encode(encoding='UTF-8')
 
-
 @dashboard.route('/dashboard/products', methods=['GET', 'POST'])
 @login_required
 def products():
-    if request.method == 'POST':
-        id = request.form['prod_id']
-        return redirect(url_for('dashboard.product_details', id=id))
-    #else
-    qsales = product_data.groupby(['id', 'quarter']).sales.sum().reset_index()\
-        .pivot(
-        values='sales',
-        index='id',
-        columns='quarter'
-    ).reset_index().rename_axis(None, axis=1)
-    qsales.rename(columns={'2021-Q1':'q1', '2021-Q2':'q2', '2021-Q3':'q3', '2021-Q4':'q4'}, inplace=True)
-    qsales['q2_change'] = qsales.apply(lambda x: percentage_change(x['q1'], x['q2']), axis=1)
-    qsales['q3_change'] = qsales.apply(lambda x: percentage_change(x['q2'], x['q3']), axis=1)
-    qsales['q4_change'] = qsales.apply(lambda x: percentage_change(x['q3'], x['q4']), axis=1)
-    qsales['sales'] = qsales.apply(lambda x: x['q1'] + x['q2'] + x['q3'] + x['q4'], axis=1)
+    if request.method=='POST':
+        data = ImmutableMultiDict(request.values).to_dict(flat=False)
+        query =f"""UPDATE product SET
+        title='{data['product_title'][0]}',
+        description='{data['description'][0]}',
+        recipient='{data['recipient'][0]}',
+        image_url='{data['image_url'][0]}'
+        WHERE id='{data['product_id'][0]}'
+        """
+        alter_db(query)
+        #print(data['product_id'][0])
 
-    data=qsales.merge(product_data[['id','title','image_url']], how='left', on='id')
-    data=data.drop_duplicates()
-    data = data.sort_values(by='sales', ascending=False)
-    data['q1'] = data.apply(lambda x: human_readable(x['q1']), axis=1)
-    data['q2'] = data.apply(lambda x: human_readable(x['q2']), axis=1)
-    data['q3'] = data.apply(lambda x: human_readable(x['q3']), axis=1)
-    data['q4'] = data.apply(lambda x: human_readable(x['q4']), axis=1)
-    data['sales'] = data.apply(lambda x: human_readable(x['sales']), axis=1)
+    pdata = query_db("""SELECT id as product_id, image_url, title as product_title, description, recipient
+                    FROM product;""")
 
-    data = {'products': data}
-    return render_template('dashboard/products.html', data=data)
+    source=ColumnDataSource(pdata)
+    columns=[
+        TableColumn(field="product_title", title="Product Title", editor=TextEditor(), formatter=HTMLTemplateFormatter(template=pr_title_template)),
+        TableColumn(field="description", title="Description", editor=TextEditor(), formatter=HTMLTemplateFormatter(template=text_template)),
+        TableColumn(field="recipient", title="Recipient", editor=StringEditor(), formatter=HTMLTemplateFormatter(template=text_template)),
+        TableColumn(field="image_url", title="Image", editor=StringEditor(), formatter=HTMLTemplateFormatter(template=text_template)),
+    ]
+    datatable = DataTable(height=800, source=source, columns=columns, index_position=None, sizing_mode='stretch_width',
+                          row_height=50, editable=True, selectable=True, css_classes=['bokeh-table'])
 
-def save_picture(form_picture):
-    random_hex = secrets.token_hex(8)
-    _, f_ext = os.path.splitext(form_picture.filename)
-    picture_fn = random_hex + f_ext
-    picture_path = os.path.join(app.root_path, 'static/profile_pics', picture_fn)
+    source.js_on_change('patching', CustomJS(args=dict(source=source), code="""
+               var changed_product = new Object();
+               var selected_index = source.selected.indices[0];               
+               changed_product['product_id'] = source.data.product_id[selected_index]; 
+               changed_product['product_title'] = source.data.product_title[selected_index]; 
+               changed_product['description'] = source.data.description[selected_index]; 
+               changed_product['recipient'] = source.data.recipient[selected_index]; 
+               changed_product['image_url'] = source.data.image_url[selected_index]; 
+               
+               jQuery.ajax({
+                  type: 'POST',
+                  url: '/dashboard/products',
+                  data: changed_product,
+                  dataType: 'json'                  
+               });
+               """))
 
-    # resize img
-    output_size = (125, 125)
-    i = Image.open(form_picture)
-    i.thumbnail(output_size)
-    i.save(picture_path)
+    _layout = layout(children=[
+        [datatable],
+    ],sizing_mode='stretch_width')
+    script, div = components(_layout)
 
-    return picture_fn
+    return render_template('dashboard/products.html',
+                           script=script,
+                           div=div,
+                           js_resources=INLINE.render_js(),
+                           css_resources=INLINE.render_css()
+                           ).encode(encoding='UTF-8')
 
 @dashboard.route('/dashboard/settings', methods=['GET', 'POST'])
 @login_required
@@ -1755,12 +2089,10 @@ def settings():
 
     return render_template('dashboard/settings.html', form=form)
 
-
 @dashboard.route('/dashboard/calendar')
 @login_required
 def calendar():
     return render_template('dashboard/calendar.html')
-
 
 @dashboard.route('/dashboard/products/<id>')
 @login_required
@@ -1799,15 +2131,13 @@ def product_details(id):
 
         return render_template('dashboard/details.html', data=data, id=id)
     else:
-        return redirect(url_for('not_found'))
-
-
+        return redirect(url_for('dashboard.not_found'))
 
 @dashboard.route('/404')
 def not_found():
     return render_template('404.html')
 
-
+#endregion
 
 
 

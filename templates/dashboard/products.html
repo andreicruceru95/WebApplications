@@ -2,109 +2,32 @@
 
 {% block head %}
     <title>Products</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jquery-ui.min.css') }}">
+    <script src="{{ url_for('static', filename='js/jquery.js') }}"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-2.4.0.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.4.0.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-2.4.0.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-2.4.0.min.js"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-mathjax-2.4.0.min.js"
+            crossorigin="anonymous"></script>
+    {{ script|safe }}
+    {{ js_resources|safe }}
+    {{ css_resources|safe }}
 {% endblock %}
 
 {% block body %}
     <div class="d-sm-flex justify-content-between align-items-center mb-4">
         <h3 class="text-white mb-0">Products</h3><a class="btn btn-primary btn-sm d-none d-sm-inline-block" role="button" href="#"><i class="fas fa-download fa-sm text-white-50"></i>&nbsp;Generate Report</a>
     </div>
-    <div class="card shadow">
-        <div class="card-header py-3">
-            <h4 class="text-dark mb-0 fw-bold">Top Products by Yearly Sales</h4>
+    <div class="row">
+        <div class="col"></div>
+        <div class="col-md-10">
+            {{ div|safe }}
         </div>
-        <div class="card-body">
-            {#<div class="row">
-                <div class="col-md-6 text-nowrap">
-                    <div id="dataTable_length" class="dataTables_length" aria-controls="dataTable"><label class="form-label">Show&nbsp;<select class="d-inline-block form-select form-select-sm">
-                        <option value="10" selected="">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                    </select>&nbsp;</label></div>
-                </div>
-            </div>#}
-            <div class="table-responsive table mt-2" id="dataTable" role="grid" aria-describedby="dataTable_info">
-                <table class="table my-0" id="dataTable">
-                    <thead>
-                    <tr>
-                        <th></th>
-                        <th>Product Title</th>
-                        <th>Q1 Sales</th>
-                        <th>Q2 Sales</th>
-                        <th> </th>
-                        <th>Q3 Sales</th>
-                        <th> </th>
-                        <th>Q4 Sales</th>
-                        <th> </th>
-                        <th>Total Sales</th>
-                        <th>Link</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for index, row in data['products'].iterrows() %}
-                    <tr>
-                        <td><img class="rounded-circle me-2" width="90" height="90" src="{{ row['image_url'] }}"></td>
-                        <td>{{ row['title'] }}</td>
-                        <td>£{{ row['q1'] }}</td>
-                        <td>£{{ row['q2'] }}</td>
-                        {% if row['q2_change'] < 0 %}
-                            <td><span><i class="fas fa-arrow-alt-circle-down text-danger"></i></span></td>
-                        {% else %}
-                            <td><span><i class="fas fa-arrow-alt-circle-up text-success"></i></span></td>
-                        {% endif %}
-                        <td>£{{ row['q3'] }}</td>
-                        {% if row['q3_change'] < 0 %}
-                            <td><span><i class="fas fa-arrow-alt-circle-down text-danger"></i></span></td>
-                        {% else %}
-                            <td><span><i class="fas fa-arrow-alt-circle-up text-success"></i></span></td>
-                        {% endif %}
-                        <td>£{{ row['q4'] }}</td>
-                        {% if row['q4_change'] < 0 %}
-                            <td><span><i class="fas fa-arrow-alt-circle-down text-danger"></i></span></td>
-                        {% else %}
-                            <td><span><i class="fas fa-arrow-alt-circle-up text-success"></i></span></td>
-                        {% endif %}
-                        <td>£{{ row['sales'] }}</td>
-                        <td><form action="{{ url_for('dashboard.products') }}", method="POST">
-                            <input type="hidden" name="prod_id" value="{{ row['id'] }}">
-                            <input class="btn btn-link" type="submit" value="Go"></form></td>
-
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                    <tfoot>
-                    <tr>
-                        <th></th>
-                        <th>Product Title</th>
-                        <th>Q1 Sales</th>
-                        <th>Q2 Sales</th>
-                        <th> </th>
-                        <th>Q3 Sales</th>
-                        <th> </th>
-                        <th>Q4 Sales</th>
-                        <th> </th>
-                        <th>Total Sales</th>
-                        <th>Link</th>
-                    </tr>
-                    </tfoot>
-                </table>
-            </div>
-            {#<div class="row">
-                <div class="col-md-6 align-self-center">
-                    <p id="dataTable_info" class="dataTables_info" role="status" aria-live="polite">Showing 1 to 10 of 27</p>
-                </div>
-                <div class="col-md-6">
-                    <nav class="d-lg-flex justify-content-lg-end dataTables_paginate paging_simple_numbers">
-                        <ul class="pagination">
-                            <li class="page-item disabled"><a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">«</span></a></li>
-                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                            <li class="page-item"><a class="page-link" href="#">2</a></li>
-                            <li class="page-item"><a class="page-link" href="#">3</a></li>
-                            <li class="page-item"><a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">»</span></a></li>
-                        </ul>
-                    </nav>
-                </div>
-            </div>#}
-        </div>
+        <div class="col"></div>
     </div>
 {% endblock %}
