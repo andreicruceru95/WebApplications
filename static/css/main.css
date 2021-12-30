@@ -1,3 +1,7 @@
 a:focus, a:hover {
     color: #0dbade;
 }
+#footerpad {
+  padding-top: 70px !important;
+  padding-bottom: 20px;
+}
