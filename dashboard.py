@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from PIL import Image
 from bokeh.models import ColumnDataSource, MultiSelect, HoverTool, DataTable, TableColumn
-from bokeh.models import FuncTickFormatter, NumberFormatter, NumeralTickFormatter, HTMLTemplateFormatter
+from bokeh.models import FuncTickFormatter, NumberFormatter, NumeralTickFormatter, HTMLTemplateFormatter, Div, Paragraph
 from bokeh.models.callbacks import CustomJS
 from bokeh.resources import INLINE
 from bokeh.embed import components
@@ -56,12 +56,15 @@ def alter_db(query):
 
 # region Database Query
 _colors =['#3182bd', '#6baed6', '#9ecae1', '#c6dbef', '#e6550d', '#fd8d3c', '#fdae6b', '#fdd0a2', '#31a354', '#74c476', '#a1d99b']
-sales_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, p.collection, s.sales, d.month, d.quarter
+
+sales_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand,
+                    p.collection, s.sales, d.month, d.quarter
                     FROM sales s
                     LEFT JOIN product p ON s.product_id = p.id
                     LEFT JOIN date d on s.date_id = d.id LIMIT 10000""")
 
-av_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, p.collection, d.date, d.month, d.quarter, a.availability
+av_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, 
+                    p.collection, d.date, d.month, d.quarter, a.availability
                     FROM availability a 
                     LEFT JOIN product p ON a.product_id = p.id
                     LEFT JOIN date d on a.date_id = d.id LIMIT 100000""")
@@ -87,7 +90,7 @@ product_data = query_db("""SELECT p.id as product_id, p.title as product_title,
 
 review_data = query_db("""
         SELECT re.product_id, re.rating, re.title AS review_title, 
-	    re.review_text, re.review_source, r.location,
+        re.review_text, re.review_source, r.location,
         r.gender, r.age_group, re.review_date, rp.reply_text, p.title AS product_title, 
         p.category, p.occasion, p.brand, p.collection, p.prod_material, p.image_url
         FROM review re
@@ -349,10 +352,14 @@ def refresh_sales_1():
     df.month = df.apply(lambda x: datetime.strptime(x.month, "%b").month, axis=1)
     df = df.sort_values(by='month')
     df.month = df.month.apply(lambda x: cal.month_abbr[x])
+    df['Avg. Daily Sales'] = df.sales/30
 
     x = list(df.month)
     y = list(df.sales)
-    response = jsonify({'x': x, 'y': y})
+    z = list(df['Avg. Daily Sales'])
+    print(df)
+
+    response = jsonify({'x': x, 'y': y, 'z': z})
     return response
 
 @dashboard.route("/refresh_sales2", methods=['POST'])
@@ -690,20 +697,12 @@ def refresh_reviews_6():
 @dashboard.route('/dashboard/summary')
 @login_required
 def summary():
-    script_summary_sales, div_summary_sales = components(get_summary_sales())
-    script_summary_sales2, div_summary_sales2 = components(get_summary_sales())
     card_data = get_cards_data()
 
 
     return render_template(
         'dashboard/dashboard.html',
-        card_data = card_data,
-        ch1_plot_script=script_summary_sales,
-        ch1_plot_script2=script_summary_sales2,
-        ch1_plot_div=div_summary_sales,
-        ch1_plot_div2=div_summary_sales2,
-        ch1_js_resources=INLINE.render_js(),
-        ch1_css_resources=INLINE.render_css(),
+        card_data = card_data
     ).encode(encoding='UTF-8')
 
 @dashboard.route('/dashboard/sales')
@@ -796,9 +795,11 @@ def sales():
     plot1_df.month = plot1_df.apply(lambda x: datetime.strptime(x.month, "%b").month, axis=1)
     plot1_df = plot1_df.sort_values(by='month')
     plot1_df.month = plot1_df.month.apply(lambda x: cal.month_abbr[x])
+    plot1_df['Avg. Daily Sales'] = plot1_df.sales/30
     plot1_x = plot1_df.month
     plot1_y = plot1_df.sales
-    plot1_source = ColumnDataSource(data=dict(x=plot1_x, y=plot1_y))
+    plot1_z = plot1_df['Avg. Daily Sales']
+    plot1_source = ColumnDataSource(data=dict(x=plot1_x, y=plot1_y, z=plot1_z))
     plot1 = figure(x_range=plot1_x, plot_height=400, tools='save')
     plot1 = style_plot(plot1, 'Sales by Month')
     plot1.line('x', 'y', source=plot1_source, line_width=3, line_alpha=0.6)
@@ -823,7 +824,8 @@ def sales():
     plot1.add_tools(HoverTool(
         tooltips=[
             ('Month', '@{x}'),
-            ('Sales', '£@y{0.00 a}'),
+            ('Sales', '£ @y{0.00 a}'),
+            ('Avg. Daily Sales', '£ @z{0.00 a}')
         ],
         mode='vline'
     ))
@@ -846,13 +848,11 @@ def sales():
             success: function (json_from_server) {
                 plot_data.y = json_from_server.y;
                 plot_data.x = json_from_server.x; 
+                plot_data.z = json.from_server.z;
                 // source.data = json_from_server.data;
                 source.change.emit();
             },
-            error: function() {
-                alert("Oh no, something went wrong. Search for an error " +
-                      "message in Flask log and browser developer tools.");
-            }
+            error: function() {}
         });
         """)
     #endregion
@@ -936,7 +936,7 @@ def sales():
     plot3 = style_plot(plot3, 'Category Share')
     plot3.xgrid.grid_line_color = None
     plot3.ygrid.grid_line_color = None
-    plot3.wedge(x=0, y=0, radius=0.4,
+    plot3.wedge(x=0, y=1, radius=0.4,
         start_angle=cumsum('angle', include_zero=True), end_angle=cumsum('angle'),
         line_color="white", fill_color='color', legend_field='category', source=plot3_source)
     plot3.legend.location = 'top_left'
@@ -1000,7 +1000,7 @@ def sales():
     plot4 = style_plot(plot4, 'Quarter Sales')
     plot4.xgrid.grid_line_color = None
     plot4.ygrid.grid_line_color = None
-    plot4.wedge(x=0, y=0, radius=0.4,
+    plot4.wedge(x=0, y=1, radius=0.4,
                 start_angle=cumsum('angle', include_zero=True), end_angle=cumsum('angle'),
                 line_color="white", fill_color='color', legend_field='quarter', source=plot4_source)
     plot4.legend.location='top_left'
@@ -1130,13 +1130,25 @@ def sales():
 
     #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
-
+    description = {'plot2&5':Div(text='<hr><h5>The bar chart is great for showing the proportions between a number of variables. '
+                                    'This visualization can be used in understanding the most popular category, '
+                                    'or the best occasion for the company.</h5><hr>'),
+                   'plot1':Div(text='<hr><h5>Line charts are great vor visualizing time series data. '
+                                    'This visualization will help understanding the fluctuation in sales across a timeline.</h5><hr>'),
+                   'plot3&4':Div(text='<hr><h5>Pie charts are a good way to visualize proportions between a number of variables.'
+                                    'This can be used to understand the busiest quarter and share of each category.</h5><hr>'),
+                   'datatable':Div(text='<hr><h5>This data table allows you to analyze sales at product level. '
+                                    'The arrows display an increase or decrease in quarterly sales. Hovering over a product will display the full title.</h5>'
+                                    '<h5>Clicking on a product will open a product details page.</h5><hr>')}
     _layout = layout(children=[
             [filters_row],
+            [description['plot2&5']],
             [plot2, plot5],
+            [description['plot1']],
             [plot1],
-            #[data_table],
+            [description['plot3&4']],
             [plot3, plot4],
+            [description['datatable']],
             [data_table2]
         ],
     sizing_mode='stretch_width')
@@ -1189,8 +1201,14 @@ def availability():
         ],
         mode='vline'
     ))
+    from bokeh.models.tickers import MonthsTicker
+
     av_plot1.yaxis.formatter = NumeralTickFormatter(format='0%')
-    #plot1.xaxis.ticker = [1,2,3,4,5,6]
+    #ticker = SingleIntervalTicker(interval=10, num_minor_ticks=10)
+    #xaxis = LinearAxis(ticker=ticker)
+    #av_plot1.add_layout(xaxis, 'below')
+    av_plot1.xaxis.ticker = MonthsTicker(months=list(range(1, 11)))
+
 
     av_plot1_callback = CustomJS(args=dict(source=av_plot1_source, controls=controls), code="""
             var selected_value = new Object();
@@ -1436,10 +1454,21 @@ def availability():
 
     #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
+    description = {
+        'plot1': Div(text='<hr><h5>This visualization will help understand the availability over time. '
+                          'This can be used in order to improve company service and boost sales.</h5><hr>'),
+        'plot2&3': Div(text='<hr><h5>The 2 bar charts will help understand the availability at category '
+                            'level and occasion level.</h5><hr>'),
+        'datatable': Div(text='<hr><h5>This data table allows you to analyze availability at brand level for each '
+                              'quarter or over the entire year.</h5><hr>')}
+
     _layout = layout(children=[
         [filters_row],
+        [description['plot1']],
         [av_plot1],
+        [description['datatable']],
         [data_table1],
+        [description['plot2&3']],
         [av_plot2, av_plot3]
     ],
         sizing_mode='stretch_width')
@@ -1584,9 +1613,18 @@ def promotions():
 
     #region Layout
     filters_row = row(*controls_array, background="#24282e", margin=(10,0,10,0))
+    description = {
+        'plot1': Div(text='<hr><h5>This visualization will help understand the number of active promotions '
+                          'over time. Promotions can bring a lot of benefits to a company, so understanding the '
+                          'best time for promotions is crucial.'
+                          'This can be used in order to improve company service and boost sales.</h5><hr>'),
+        'datatable': Div(text='<hr><h5>This data table allows you to analyze the number of promotions '
+                              'and the average discount for each category</h5><hr>')}
     _layout = layout(children=[
         [filters_row],
+        [description['plot1']],
         [pr_plot1],
+        [description['datatable']],
         [data_table],
     ],
         sizing_mode='stretch_width')
@@ -1987,6 +2025,7 @@ def reviews():
 
     #endregion
 
+    # region layout
     for single_control in controls_array:
         single_control.js_on_change('value', re_plot1_callback)
         single_control.js_on_change('value', re_plot2_callback)
@@ -1995,16 +2034,25 @@ def reviews():
         single_control.js_on_change('value', re_plot5_callback)
         single_control.js_on_change('value', re_dt_callback)
 
+
     filters_row = row(*controls_array, background="#24282e", margin=(10, 0, 10, 0))
+    description = {
+        'plot1': Div(text='<hr><h5>The 3 bar charts allows the user to understand the general sentiment '
+                          'for various categories or brands. </h5><hr>'),
+        'datatable': Div(text='<hr><h5>This data table allows you to have a detailed look at the reviews '
+                              'for each product. Clicking on a product will open a detailed product page.</h5><hr>')}
     _layout = layout(children=[
         [filters_row],
+        [description['plot1']],
         [re_plot1, re_plot2, re_plot3],
         [re_plot4, re_plot5],
+        [description['datatable']],
         [data_table],
         [wc_table]
     ],
         sizing_mode='stretch_width')
     script, div = components(_layout)
+# endregion
 
     return render_template('dashboard/reviews.html',
                            script=script,
@@ -2026,7 +2074,6 @@ def products():
         WHERE id='{data['product_id'][0]}'
         """
         alter_db(query)
-        #print(data['product_id'][0])
 
     pdata = query_db("""SELECT id as product_id, image_url, title as product_title, description, recipient
                     FROM product;""")
@@ -2057,8 +2104,12 @@ def products():
                   dataType: 'json'                  
                });
                """))
-
+    description = {
+        'datatable': Div(text='<hr><h5>This data table allows you to modify product details and images. '
+                              'Changes are written to the database so be careful about it.</h5>'
+                              '<h5>Clicking on a product will open a product details page.</h5><hr>')}
     _layout = layout(children=[
+        [description['datatable']],
         [datatable],
     ],sizing_mode='stretch_width')
     script, div = components(_layout)
@@ -2138,6 +2189,3 @@ def not_found():
     return render_template('404.html')
 
 #endregion
-
-
-

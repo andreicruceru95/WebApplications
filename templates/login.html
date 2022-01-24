@@ -1,61 +1,56 @@
 {%  extends 'partial/account.html' %}
-
 {% block head %}
     <title>Login</title>
 {% endblock %}
 {% block body %}
     <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-9 col-lg-12 col-xl-10">
-                <div class="card shadow-lg o-hidden border-0 my-5">
-                    <div class="card-body p-0">
-                        <div class="row">
-                            <div class="col-lg-6 d-none d-lg-flex">
-                                <div class="flex-grow-1 bg-login-image" style="">Image</div>
+        <div class="card shadow-lg o-hidden border-0 my-5">
+            <div class="card-body p-0">
+                <div class="row">
+                    <div class="col-lg-7 d-none d-lg-flex">
+                        <div class="flex-grow-1 bg-login-image" style="background-image: url({{ url_for('static', filename='img/dashboard.gif') }});"></div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="p-5">
+                            <div class="text-center">
+                                <h4 class="text-dark mb-4">Welcome Back!</h4>
                             </div>
-                            <div class="col-lg-6">
-                                <div class="p-5">
-                                    <div class="text-center">
-                                        <h4 class="text-dark mb-4">Welcome Back!</h4>
-                                    </div>
-                                    <form class="user" action="" method="POST">
-                                        {{ form.hidden_tag() }}
-                                        {% with messages = get_flashed_messages(with_categories=true) %}
-                                            {% if messages %}
-                                                {% for category, message in messages %}
-                                                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                                                {% endfor %}
-                                            {% endif %}
-                                        {% endwith %}
-                                        <div class="mb-3">
-                                            {% if form.email.errors %}
-                                                {% for error in form.email.errors %}
-                                                    <span class="text-danger">{{ error }}</span>
-                                                {% endfor %}
-                                            {% endif %}
-                                            {{ form.email(class_="form-control form-control-user", placeholder="Enter Email Address...") }}
-                                        </div>
-                                        <div class="mb-3">
-                                            {% if form.password.errors %}
-                                                {% for error in form.password.errors %}
-                                                    <span class="text-danger">{{ error }}</span>
-                                                {% endfor %}
-                                            {% endif %}
-                                            {{ form.password(class_="form-control form-control-user", placeholder="Enter Password...") }}
-                                        </div>
-                                        <div class="mb-3">
-                                            <div class="custom-control custom-checkbox small">
-                                                {{ form.remember(class_="form-check form-check-input custom-control-input") }} <label class="form-check-label custom-control-label" for="formCheck-1">Remember Me</label>
-                                            </div>
-                                        </div>
-                                        {{ form.submit(class_="btn btn-primary d-block btn-user w-100") }}
-                                        <hr><a class="btn btn-primary d-block btn-google btn-user w-100 mb-2" role="button"><i class="fab fa-google"></i>&nbsp; Login with Google</a><a class="btn btn-primary d-block btn-facebook btn-user w-100" role="button"><i class="fab fa-facebook-f"></i>&nbsp; Login with Facebook</a>
-                                        <hr>
-                                    </form>
-                                    <div class="text-center"><a class="small" href="{{ url_for('main.reset_request') }}">Forgot Password?</a></div>
-                                    <div class="text-center"><a class="small" href="{{ url_for('main.register') }}">Create an Account!</a></div>
+                            <form class="user" action="" method="POST">
+                                {{ form.hidden_tag() }}
+                                {% with messages = get_flashed_messages(with_categories=true) %}
+                                    {% if messages %}
+                                        {% for category, message in messages %}
+                                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endwith %}
+                                <div class="mb-3">
+                                    {% if form.email.errors %}
+                                        {% for error in form.email.errors %}
+                                            <span class="text-danger">{{ error }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {{ form.email(class_="form-control form-control-user", placeholder="Enter Email Address...") }}
                                 </div>
-                            </div>
+                                <div class="mb-3">
+                                    {% if form.password.errors %}
+                                        {% for error in form.password.errors %}
+                                            <span class="text-danger">{{ error }}</span>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {{ form.password(class_="form-control form-control-user", placeholder="Enter Password...") }}
+                                </div>
+                                <div class="mb-3">
+                                    <div class="custom-control custom-checkbox small">
+                                        {{ form.remember(class_="form-check form-check-input custom-control-input") }} <label class="form-check-label custom-control-label" for="formCheck-1">Remember Me</label>
+                                    </div>
+                                </div>
+                                {{ form.submit(class_="btn btn-primary d-block btn-user w-100") }}
+                                <hr><a class="btn btn-primary d-block btn-google btn-user w-100 mb-2" role="button"><i class="fab fa-google"></i>&nbsp; Login with Google</a><a class="btn btn-primary d-block btn-facebook btn-user w-100" role="button"><i class="fab fa-facebook-f"></i>&nbsp; Login with Facebook</a>
+                                <hr>
+                            </form>
+                            <div class="text-center"><a class="small" href="{{ url_for('main.reset_request') }}">Forgot Password?</a></div>
+                            <div class="text-center"><a class="small" href="{{ url_for('main.register') }}">Create an Account!</a></div>
                         </div>
                     </div>
                 </div>

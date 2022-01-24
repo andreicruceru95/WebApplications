@@ -5,11 +5,14 @@
 {% endblock %}
 
 {% block body %}
-    <div class="jumbotron">
-        <h1>CO550 Web Applications</h1>
-        <h2>Yada Yada Yada</h2>
+    <div class="jumbotron" style="background-image: url({{ url_for('static', filename='img/index.jpg') }}); background-repeat: no-repeat; background-size: cover;">
+        <div class="flex-grow-1">
+            <br><br><br><br><br>
+            <hr><h1 style="font-weight: bold; margin-left: 10%; color: #c45901">A.C. Insights & Analytics</h1><hr>
+            <br><br><br>
+            <h1 style="font-weight: bold; margin-left: 5%; color: #c45901">Delivering valuable insights to valuable clients across the globe!</h1>
+            <br><br><br><br><br><br><br><br><br>
+        </div>
     </div>
-    <div class="row">
-        <h3>By Andrei Cruceru</h3>
-    </div>
+    
 {% endblock %}

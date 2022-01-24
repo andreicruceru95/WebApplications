@@ -2,26 +2,11 @@
 
 {% block head %}
 <title>Dashboard</title>
-    {{ ch1_js_resources|indent(4)|safe }}
-    {{ ch1_css_resources|indent(4)|safe }}
-    {{ ch1_plot_script|indent(4)|safe }}
-    {{ ch1_plot_script2|indent(4)|safe }}
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-2.4.0.min.js"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-2.4.0.min.js"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-2.4.0.min.js"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-2.4.0.min.js"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-mathjax-2.4.0.min.js"
-            crossorigin="anonymous"></script>
 {% endblock %}
 
 {% block body %}
-
     <div class="d-sm-flex justify-content-between align-items-center mb-4">
-        <h3 class="text-white mb-0">Dashboard</h3><a class="btn btn-primary btn-sm d-none d-sm-inline-block" role="button" href="#"><i class="fas fa-download fa-sm text-white-50"></i>&nbsp;Generate Report</a>
+        <h3 class="text-white mb-0">Dashboard</h3><a class="btn btn-outline-warning btn-sm d-none d-sm-inline-block" role="button" href="#"><i class="fas fa-download fa-sm text-success-50"></i>&nbsp;Generate Report</a>
     </div>
     <div class="row">
         <div class="col-md-6 col-xl-3 mb-4 bg-gradient-dark">
@@ -78,45 +63,13 @@
         </div>
     </div>
     <div class="row">
-        <div class="col-lg-7 col-xl-8 bg-gradient-dark">
+        <div class="col bg-gradient-dark">
             <div class="card shadow mb-4 bg-gradient-dark">
                 <div class="card-header d-flex justify-content-between align-items-center bg-gradient-dark">
-                    <h6 class="text-gray-100 fw-bold h4 m-0 ">Sales by Month</h6>
+                    <h6 class="text-gray-100 fw-bold h4 m-0 "></h6>
                 </div>
                 <div class="card-body">
-                    {{ ch1_plot_div|indent(4)|safe }}
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-5 col-xl-4 bg-gradient-dark">
-            <div class="card shadow mb-4 bg-gradient-dark">
-                <div class="card-header d-flex justify-content-between align-items-center bg-gradient-dark">
-                    <h6 class="text-gray-100 fw-bold m-0">Cart Title</h6>
-                </div>
-                <div class="card-body bg-gradient-dark">
-                    {{ ch1_plot_div2|indent(4)|safe }}
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-lg-6 mb-4 bg-gradient-dark">
-            <div class="card shadow mb-4 bg-gradient-dark">
-                <div class="card-header py-3 bg-gradient-dark">
-                    <h6 class="text-gray-100 fw-bold m-0">Bar Chart Title</h6>
-                </div>
-                <div class="card-body bg-gradient-dark">
-                    Bar Chart Here
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-6 mb-4 bg-gradient-dark">
-            <div class="card shadow mb-4 bg-gradient-dark">
-                <div class="card-header py-3 bg-gradient-dark">
-                    <h6 class="text-gray-100 fw-bold m-0">Bar Chart Title</h6>
-                </div>
-                <div class="card-body bg-gradient-dark">
-                    Bar Chart Here
+
                 </div>
             </div>
         </div>
