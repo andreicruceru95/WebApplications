@@ -61,21 +61,20 @@ sales_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.pr
                     p.collection, s.sales, d.month, d.quarter
                     FROM sales s
                     LEFT JOIN product p ON s.product_id = p.id
-                    LEFT JOIN date d on s.date_id = d.id LIMIT 10000""")
+                    LEFT JOIN date d on s.date_id = d.id""")
 
 av_data = query_db("""SELECT p.id as product_id, p.category, p.occasion, p.prod_material, p.brand, 
                     p.collection, d.date, d.month, d.quarter, a.availability
                     FROM availability a 
                     LEFT JOIN product p ON a.product_id = p.id
-                    LEFT JOIN date d on a.date_id = d.id LIMIT 100000""")
+                    LEFT JOIN date d on a.date_id = d.id""")
 av_data.date = pd.to_datetime(av_data.date, dayfirst=False).dt.strftime("%Y/%m/%d")
 
 pr_data = query_db("""SELECT p.id, p.category, p.occasion, p.prod_material, p.brand, p.collection, d.date,
              d.month, pr.regular_price, pr.promotion_price
              FROM promotion pr 
              LEFT JOIN product p ON pr.product_id = p.id
-             LEFT JOIN date d on pr.date_id = d.id             
-             LIMIT 100000""")
+             LEFT JOIN date d on pr.date_id = d.id""")
 pr_data['discount'] = pr_data.promotion_price/pr_data.regular_price
 pr_data.date = pd.to_datetime(pr_data.date, dayfirst=False).dt.strftime("%Y/%m/%d")
 
@@ -2004,26 +2003,26 @@ def reviews():
                """)
     # endregion
 
-    #region WordCloud
-    stopwords = set(STOPWORDS)
-    text = ' '.join(r for r in review_data.review_text)
-    wordcloud = WordCloud(stopwords=stopwords).generate(text)
-    plt.imshow(wordcloud, interpolation='bilinear')
-    plt.axis("off")
-    plt.savefig('static/img/cloud.png')
-
-    wcdata=review_data.loc[:0, :]
-    wcdata['cloud']='http://127.0.0.1:5000/static/img/cloud.png'
-    wc_source=ColumnDataSource(wcdata)
-
-    columns = [
-        TableColumn(field='cloud', title="Customer Sentiment",
-                    formatter=HTMLTemplateFormatter(template="""<img src="<%= cloud%>" style="width:400px;height:290px;border:0">""")),
-    ]
-    wc_table = DataTable(source=wc_source, columns=columns, height=300, width=410, row_height=250, index_position=None,
-                          sizing_mode='fixed', background=None, css_classes=['bokeh-table'])
-
-    #endregion
+    # #region WordCloud
+    # stopwords = set(STOPWORDS)
+    # text = ' '.join(r for r in review_data.review_text)
+    # wordcloud = WordCloud(stopwords=stopwords).generate(text)
+    # plt.imshow(wordcloud, interpolation='bilinear')
+    # plt.axis("off")
+    # plt.savefig('static/img/cloud.png')
+    #
+    # wcdata=review_data.loc[:0, :]
+    # wcdata['cloud']='http://127.0.0.1:5000/static/img/cloud.png'
+    # wc_source=ColumnDataSource(wcdata)
+    #
+    # columns = [
+    #     TableColumn(field='cloud', title="Customer Sentiment",
+    #                 formatter=HTMLTemplateFormatter(template="""<img src="<%= cloud%>" style="width:400px;height:290px;border:0">""")),
+    # ]
+    # wc_table = DataTable(source=wc_source, columns=columns, height=300, width=410, row_height=250, index_position=None,
+    #                       sizing_mode='fixed', background=None, css_classes=['bokeh-table'])
+    #
+    # #endregion
 
     # region layout
     for single_control in controls_array:
@@ -2048,7 +2047,7 @@ def reviews():
         [re_plot4, re_plot5],
         [description['datatable']],
         [data_table],
-        [wc_table]
+        #[wc_table]
     ],
         sizing_mode='stretch_width')
     script, div = components(_layout)
