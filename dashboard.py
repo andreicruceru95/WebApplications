@@ -356,7 +356,6 @@ def refresh_sales_1():
     x = list(df.month)
     y = list(df.sales)
     z = list(df['Avg. Daily Sales'])
-    print(df)
 
     response = jsonify({'x': x, 'y': y, 'z': z})
     return response
@@ -916,8 +915,6 @@ def sales():
                     source.change.emit();
                 },
                 error: function() {
-                    alert("Oh no, something went wrong. Search for an error " +
-                          "message in Flask log and browser developer tools.");
                 }
             });
             """)
